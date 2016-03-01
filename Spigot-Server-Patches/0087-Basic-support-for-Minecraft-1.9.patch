@@ -1,0 +1,598 @@
+From 2a9d347fa888f235adc7c7af46a58d8d47c1c4cd Mon Sep 17 00:00:00 2001
+From: lukas81298 <lukas81298@gmail.com>
+Date: Tue, 1 Mar 2016 16:56:13 +0100
+Subject: [PATCH] Basic support for Minecraft 1.9
+
+
+diff --git a/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java b/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java
+new file mode 100644
+index 0000000..5a56b9b
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java
+@@ -0,0 +1,69 @@
++package me.lukas81298.protocol;
++
++import java.util.HashSet;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * Created by lukas81298 on 01.03.2016.
++ */
++public class ProtocolConversionClient {
++
++    private static Map<Integer, Integer> packetIdBackward = new ConcurrentHashMap<Integer, Integer>();
++    private static Map<Integer, Integer> packetIdForward = new ConcurrentHashMap<Integer, Integer>();
++
++    private static Set<Integer> removedPackets = new HashSet<Integer>();
++
++    public static int getOldPacketId(int newPacketId) {
++        return packetIdBackward.get(newPacketId);
++    }
++
++    public static int getNewPacketId(int oldPacketId) {
++        return packetIdForward.get(oldPacketId);
++    }
++
++    private static void a(int oldId, int newId) {
++        packetIdBackward.put(newId, oldId);
++        packetIdForward.put(oldId, newId);
++    }
++
++    public static boolean isPacketRemoved(int packetId) {
++        return removedPackets.contains(packetId);
++    }
++
++    static {
++        // new packet 0x00 teleport confirm
++        a(0x14, 0x01);
++        a(0x01, 0x02);
++        a(0x16, 0x03);
++        a(0x15, 0x04);
++        a(0x0F, 0x05);
++        a(0x11, 0x06);
++        a(0x0E, 0x07);
++        a(0x0D, 0x08);
++        a(0x17, 0x09);
++        a(0x02, 0x0A);
++        a(0x00, 0x0B);
++        a(0x04, 0x0C);
++        a(0x06, 0x0D);
++        a(0x05, 0x0E);
++        a(0x03, 0x0F);
++        // new packet 0x10 vehicle move
++        // new packet 0x11 steer boat
++        a(0x13, 0x12);
++        a(0x07, 0x13);
++        a(0x0B, 0x14);
++        a(0x0C, 0x15);
++        a(0x19, 0x16);
++        a(0x09, 0x17);
++        a(0x10, 0x18);
++        a(0x12, 0x19);
++        a(0x0A, 0x1A);
++        a(0x18, 0x1B);
++        a(0x08, 0x1C);
++        // new packet 0x1C use item
++
++    }
++
++}
+diff --git a/src/main/java/me/lukas81298/protocol/ProtocolConversionServer.java b/src/main/java/me/lukas81298/protocol/ProtocolConversionServer.java
+new file mode 100644
+index 0000000..18c5e1e
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/ProtocolConversionServer.java
+@@ -0,0 +1,119 @@
++package me.lukas81298.protocol;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.Map;
++import java.util.Set;
++import java.util.HashSet;
++
++/**
++ * Created by lukas81298 on 01.03.2016.
++ */
++public class ProtocolConversionServer {
++
++    private static Map<Integer, Integer> packetIdBackward = new ConcurrentHashMap<Integer, Integer>();
++    private static Map<Integer, Integer> packetIdForward = new ConcurrentHashMap<Integer, Integer>();
++
++    private static Set<Integer> removedPackets = new HashSet<Integer>();
++
++    public static int getOldPacketId(int newPacketId) {
++        return packetIdBackward.get(newPacketId);
++    }
++
++    public static int getNewPacketId(int oldPacketId) {
++        return packetIdForward.get(oldPacketId);
++    }
++
++    private static void a(int oldId, int newId) {
++        packetIdBackward.put(newId, oldId);
++        packetIdForward.put(oldId, newId);
++    }
++
++    public static boolean isPacketRemoved(int packetId) {
++        return removedPackets.contains(packetId);
++    }
++
++    static {
++        a(0x0E, 0x00);
++        a(0x11, 0x01);
++        a(0x2C, 0x02);
++        a(0x0F, 0x03);
++        a(0x10, 0x04);
++        a(0x0C, 0x05);
++        a(0x0B, 0x06);
++        a(0x37, 0x07);
++        a(0x25, 0x08);
++        a(0x35, 0x09);
++        a(0x24, 0x0A);
++        a(0x23, 0x0B);
++        // add packet 0x0C Boss Bar
++        a(0x41, 0x0D);
++        a(0x3A, 0x0E);
++        a(0x02, 0x0F);
++        a(0x22, 0x10);
++        a(0x32, 0x11);
++        a(0x2E, 0x12);
++        a(0x2D, 0x13);
++        a(0x30, 0x14);
++        a(0x31, 0x15);
++        a(0x2F, 0x16);
++        // new packet  0x17 set cooldown
++        a(0x3F, 0x18);
++        a(0x29, 0x19);
++        a(0x40, 0x1A);
++        a(0x1A, 0x1B);
++        a(0x27, 0x1C);
++        // new packet 0x1d unload chunk
++        a(0x2B, 0x1E);
++        a(0x00, 0x1F);
++        a(0x21, 0x20);
++        a(0x28, 0x21);
++        a(0x2A, 0x22);
++        a(0x01, 0x23);
++        a(0x34, 0x24);
++        a(0x15, 0x25);
++        a(0x17, 0x26);
++        a(0x16, 0x27);
++        a(0x14, 0x28);
++        // new packet 0x29 vehicle move
++        a(0x36, 0x2A);
++        a(0x29, 0x2B);
++        a(0x42, 0x2C);
++        a(0x38, 0x2D);
++        a(0x08, 0x2E);
++        a(0x0A, 0x2F);
++        a(0x13, 0x30);
++        a(0x1E, 0x31);
++        a(0x48, 0x32);
++        a(0x07, 0x33);
++        a(0x19, 0x34);
++        a(0x44, 0x35);
++        a(0x43, 0x36);
++        a(0x09, 0x37);
++        a(0x3D, 0x38);
++        a(0x1C, 0x39);
++        a(0x1B, 0x3A);
++        a(0x12, 0x3B);
++        a(0x04, 0x3C);
++        a(0x1F, 0x3D);
++        a(0x06, 0x3E);
++        a(0x3B, 0x3F);
++        // new packet 0x40 set passengers
++        a(0x3E, 0x41);
++        a(0x3C, 0x42);
++        a(0x05, 0x43);
++        a(0x03, 0x44);
++        a(0x45, 0x45);
++        a(0x33, 0x46);
++        // new packet 0x47 sound effect
++        a(0x47, 0x48);
++        a(0x0D, 0x49);
++        a(0x18, 0x4A);
++        a(0x20, 0x4B);
++        a(0x1D, 0x4C);
++
++        removedPackets.add(0x26);
++        removedPackets.add(0x46);
++        removedPackets.add(0x49);
++    }
++
++}
+diff --git a/src/main/java/net/minecraft/server/HandshakeListener.java b/src/main/java/net/minecraft/server/HandshakeListener.java
+index 7566110..35c5946 100644
+--- a/src/main/java/net/minecraft/server/HandshakeListener.java
++++ b/src/main/java/net/minecraft/server/HandshakeListener.java
+@@ -72,7 +72,7 @@ public class HandshakeListener implements PacketHandshakingInListener {
+             }
+             // CraftBukkit end
+ 
+-            if (packethandshakinginsetprotocol.d() > 5 && packethandshakinginsetprotocol.d() != 47) { // Spigot
++            if (packethandshakinginsetprotocol.d() > 5 && (packethandshakinginsetprotocol.d() != 47 || packethandshakinginsetprotocol.d() != 107 /* Protocol Hack 1.9 */)) { // Spigot
+                 chatcomponenttext = new ChatComponentText( java.text.MessageFormat.format( org.spigotmc.SpigotConfig.outdatedServerMessage, "1.7.10" ) ); // Spigot
+                 this.b.handle(new PacketLoginOutDisconnect(chatcomponenttext), new GenericFutureListener[0]);
+                 this.b.close(chatcomponenttext);
+diff --git a/src/main/java/net/minecraft/server/PacketDecoder.java b/src/main/java/net/minecraft/server/PacketDecoder.java
+index 5213f1f..feca8be 100644
+--- a/src/main/java/net/minecraft/server/PacketDecoder.java
++++ b/src/main/java/net/minecraft/server/PacketDecoder.java
+@@ -3,6 +3,7 @@ package net.minecraft.server;
+ import java.io.IOException;
+ import java.util.List;
+ 
++import me.lukas81298.protocol.ProtocolConversionClient;
+ import net.minecraft.util.com.google.common.collect.BiMap;
+ import net.minecraft.util.io.netty.buffer.ByteBuf;
+ import net.minecraft.util.io.netty.channel.ChannelHandlerContext;
+@@ -23,11 +24,15 @@ public class PacketDecoder extends ByteToMessageDecoder {
+     }
+ 
+     protected void decode(ChannelHandlerContext channelhandlercontext, ByteBuf bytebuf, List list) throws IOException {
+-        int i = bytebuf.readableBytes();
+-
+-        if (i != 0) {
+-            PacketDataSerializer packetdataserializer = new PacketDataSerializer( bytebuf, NetworkManager.getVersion( channelhandlercontext.channel() ) ); // Spigot
+-            int j = packetdataserializer.a();
++        int i = bytebuf.readableBytes(); // read the length of the packet data
++
++        if (i != 0) { // do not continue if we do not have any packet data
++            int version  = NetworkManager.getVersion( channelhandlercontext.channel());
++            PacketDataSerializer packetdataserializer = new PacketDataSerializer( bytebuf,version ); // Spigot
++            int j = packetdataserializer.a(); //  get raw packet id
++            if(version >= 107) { // check if using 1.9 or higher We don't support any kind of snapshots!
++                j = ProtocolConversionClient.getOldPacketId(j); // replace the new packet id from 1.9 with the old one
++            }
+             Packet packet = Packet.a((BiMap) channelhandlercontext.channel().attr(NetworkManager.e).get(), j);
+ 
+             if (packet == null) {
+diff --git a/src/main/java/net/minecraft/server/PacketEncoder.java b/src/main/java/net/minecraft/server/PacketEncoder.java
+index 7994daa..d25ea4b 100644
+--- a/src/main/java/net/minecraft/server/PacketEncoder.java
++++ b/src/main/java/net/minecraft/server/PacketEncoder.java
+@@ -2,6 +2,7 @@ package net.minecraft.server;
+ 
+ import java.io.IOException;
+ 
++import me.lukas81298.protocol.ProtocolConversionServer;
+ import net.minecraft.util.com.google.common.collect.BiMap;
+ import net.minecraft.util.io.netty.buffer.ByteBuf;
+ import net.minecraft.util.io.netty.channel.ChannelHandlerContext;
+@@ -23,7 +24,11 @@ public class PacketEncoder extends MessageToByteEncoder {
+ 
+     protected void a(ChannelHandlerContext channelhandlercontext, Packet packet, ByteBuf bytebuf) throws IOException {
+         Integer integer = (Integer) ((BiMap) channelhandlercontext.channel().attr(NetworkManager.f).get()).inverse().get(packet.getClass());
+-
++        int version = NetworkManager.getVersion(channelhandlercontext.channel());
++        if(version >= 107 && ProtocolConversionServer.isPacketRemoved(integer.intValue())){
++            System.out.println("[WARNING] Packet " + integer + " has been removed in Minecraft 1.9."); // Packet has been removed in Minecraft 1.9+;
++            return;
++        }
+         if (a.isDebugEnabled()) {
+             a.debug(b, "OUT: [{}:{}] {}[{}]", new Object[] { channelhandlercontext.channel().attr(NetworkManager.d).get(), integer, packet.getClass().getName(), packet.b()});
+         }
+@@ -31,9 +36,12 @@ public class PacketEncoder extends MessageToByteEncoder {
+         if (integer == null) {
+             throw new IOException("Can\'t serialize unregistered packet");
+         } else {
+-            PacketDataSerializer packetdataserializer = new PacketDataSerializer(bytebuf, NetworkManager.getVersion(channelhandlercontext.channel())); // Spigot
+-
+-            packetdataserializer.b(integer.intValue());
++            PacketDataSerializer packetdataserializer = new PacketDataSerializer(bytebuf, version); // Spigot
++            int packetId = integer.intValue();
++            if(version >= 107) {
++                packetId = ProtocolConversionServer.getNewPacketId(packetId); // replace the old packet id with the new one so the client can handle this packet
++            }
++            packetdataserializer.b(packetId);
+             packet.b(packetdataserializer);
+             this.c.b(integer.intValue(), (long) packetdataserializer.readableBytes());
+         }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInArmAnimation.java b/src/main/java/net/minecraft/server/PacketPlayInArmAnimation.java
+index 91d9e58..4642e6a 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInArmAnimation.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInArmAnimation.java
+@@ -13,6 +13,8 @@ public class PacketPlayInArmAnimation extends Packet {
+         {
+             this.a = packetdataserializer.readInt();
+             this.b = packetdataserializer.readByte();
++        } else if(packetdataserializer.version >= 107) {
++            packetdataserializer.a(); // VarInt Protocol Hack 1.9
+         } else {
+             b = 1;
+         }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInBlockDig.java b/src/main/java/net/minecraft/server/PacketPlayInBlockDig.java
+index e85ba8c..b87ebee 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInBlockDig.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInBlockDig.java
+@@ -12,6 +12,7 @@ public class PacketPlayInBlockDig extends Packet {
+ 
+     public void a(PacketDataSerializer packetdataserializer) {
+         this.e = packetdataserializer.readUnsignedByte();
++
+         // Spigot start
+         if ( packetdataserializer.version < 16)
+         {
+@@ -27,6 +28,9 @@ public class PacketPlayInBlockDig extends Packet {
+         }
+         // Spigot end
+         this.face = packetdataserializer.readUnsignedByte();
++        if(this.e > 5) {
++            this.e = 1; // Protocol Hack
++        }
+     }
+ 
+     public void b(PacketDataSerializer packetdataserializer) {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInBlockPlace.java b/src/main/java/net/minecraft/server/PacketPlayInBlockPlace.java
+index b9cea4c..b597490 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInBlockPlace.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInBlockPlace.java
+@@ -29,7 +29,11 @@ public class PacketPlayInBlockPlace extends Packet {
+         }
+         // Spigot end
+         this.d = packetdataserializer.readUnsignedByte();
+-        this.e = packetdataserializer.c();
++        if(packetdataserializer.version < 107) {
++            this.e = packetdataserializer.c();
++        } else {
++            packetdataserializer.a(); // read a VarInt We only support one Hand!
++        }
+         this.f = (float) packetdataserializer.readUnsignedByte() / 16.0F;
+         this.g = (float) packetdataserializer.readUnsignedByte() / 16.0F;
+         this.h = (float) packetdataserializer.readUnsignedByte() / 16.0F;
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInSettings.java b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+index ea51d91..08f81db 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInSettings.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInSettings.java
+@@ -33,6 +33,9 @@ public class PacketPlayInSettings extends Packet {
+             flags = packetdataserializer.readUnsignedByte();
+         }
+         version = packetdataserializer.version;
++        if(version >= 107) {
++            packetdataserializer.a(); // Read Main Hand (Not Needed) Protcol Hack 1.9
++        }
+         // Spigot end
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInUpdateSign.java b/src/main/java/net/minecraft/server/PacketPlayInUpdateSign.java
+index f6cf5c8..756d571 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInUpdateSign.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInUpdateSign.java
+@@ -30,8 +30,9 @@ public class PacketPlayInUpdateSign extends Packet {
+ 
+         for (int i = 0; i < 4; ++i) {
+             // Spigot start - protocol patch
+-            if ( packetdataserializer.version < 21 )
+-            {
++            if(packetdataserializer.version >= 107) {
++                this.d[i] = packetdataserializer.c(16);
++            } else if ( packetdataserializer.version < 21 ) {
+                 this.d[ i ] = packetdataserializer.c( 15 );
+             } else
+             {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayInUseEntity.java b/src/main/java/net/minecraft/server/PacketPlayInUseEntity.java
+index 3f12453..06ed52e 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayInUseEntity.java
++++ b/src/main/java/net/minecraft/server/PacketPlayInUseEntity.java
+@@ -25,6 +25,9 @@ public class PacketPlayInUseEntity extends Packet {
+                 this.action = EnumEntityUseAction.values()[ val % EnumEntityUseAction.values().length ];
+             }
+         }
++        if(packetdataserializer.version >= 107) {
++            packetdataserializer.a();
++        }
+         // Spigot end
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutEntityEffect.java b/src/main/java/net/minecraft/server/PacketPlayOutEntityEffect.java
+index 3693850..c3bbc27 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutEntityEffect.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutEntityEffect.java
+@@ -28,6 +28,16 @@ public class PacketPlayOutEntityEffect extends Packet {
+     }
+ 
+     public void b(PacketDataSerializer packetdataserializer) {
++        // Protocol Hack 1.9
++        if ( packetdataserializer.version >= 107 )
++        {
++            packetdataserializer.b( a );
++            packetdataserializer.writeByte( b );
++            packetdataserializer.writeByte( c );
++            packetdataserializer.b( d );
++            packetdataserializer.writeByte(0);
++        } else
++        // End
+         // Spigot start - protocol patch
+         if ( packetdataserializer.version < 16 )
+         {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutEntityEquipment.java b/src/main/java/net/minecraft/server/PacketPlayOutEntityEquipment.java
+index 1ca4f08..97ea9f4 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutEntityEquipment.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutEntityEquipment.java
+@@ -29,7 +29,17 @@ public class PacketPlayOutEntityEquipment extends Packet {
+             packetdataserializer.b( this.a );
+         }
+         // Spigot end
+-        packetdataserializer.writeShort(this.b);
++        // Protocol Hack 1.9 Start
++        if(packetdataserializer.version >= 107) {
++            int t = this.b;
++            if(t > 0) {
++                t = t + 1; // off hand added, every other slot will be moved by 1
++            }
++            packetdataserializer.b(t);
++        } else {
++            packetdataserializer.writeShort(this.b);
++        }
++        // End
+         packetdataserializer.a(this.c);
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutEntityTeleport.java b/src/main/java/net/minecraft/server/PacketPlayOutEntityTeleport.java
+index 29a4c88..abb323e 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutEntityTeleport.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutEntityTeleport.java
+@@ -66,9 +66,18 @@ public class PacketPlayOutEntityTeleport extends Packet {
+             packetdataserializer.b( a );
+         }
+         // Spigot end
+-        packetdataserializer.writeInt(this.b);
+-        packetdataserializer.writeInt(packetdataserializer.version >= 16 && this.heightCorrection ? this.c - 16 : this.c); // Spigot - protocol patch
+-        packetdataserializer.writeInt(this.d);
++        int h = packetdataserializer.version >= 16 && this.heightCorrection ? this.c - 16 : this.c;// Spigot - protocol patch
++        // Protocol Hack 1.9 Start
++        if(packetdataserializer.version >= 107) {
++            packetdataserializer.writeDouble(this.b);
++            packetdataserializer.writeDouble(h);
++            packetdataserializer.writeDouble(this.d);
++        } else {
++            packetdataserializer.writeInt(this.b);
++            packetdataserializer.writeInt(h);
++            packetdataserializer.writeInt(this.d);
++        }
++        // End
+         packetdataserializer.writeByte(this.e);
+         packetdataserializer.writeByte(this.f);
+         // Spigot start - protocol patch
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMap.java b/src/main/java/net/minecraft/server/PacketPlayOutMap.java
+index b45a9ce..458148c 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMap.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMap.java
+@@ -32,6 +32,10 @@ public class PacketPlayOutMap extends Packet {
+             packetdataserializer.writeBytes( this.b );
+         } else {
+             packetdataserializer.writeByte( scale );
++            // Protocol Hack 1.9
++            if(packetdataserializer.version >= 107) {
++                packetdataserializer.writeBoolean(false);
++            }
+             if (b[0] == 1) {
+                 int count = (b.length - 1) / 3;
+                 packetdataserializer.b( count );
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index f68486d..8d0edf1 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -84,7 +84,11 @@ public class PacketPlayOutMapChunk extends Packet {
+         packetdataserializer.writeInt(this.a);
+         packetdataserializer.writeInt(this.b);
+         packetdataserializer.writeBoolean(this.g);
+-        packetdataserializer.writeShort((short) (this.c & '\uffff'));
++        if(packetdataserializer.version >= 107) { // Protocol Hack 1.9
++            packetdataserializer.b(this.c & '\uffff'); // Short -> VarInt
++        } else {
++            packetdataserializer.writeShort((short) (this.c & '\uffff'));
++        }
+         // Spigot start - protocol patch
+         if ( packetdataserializer.version < 27 )
+         {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMove.java b/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMove.java
+index 37e5a38..ebdd59c 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMove.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMove.java
+@@ -23,9 +23,15 @@ public class PacketPlayOutRelEntityMove extends PacketPlayOutEntity {
+ 
+     public void b(PacketDataSerializer packetdataserializer) {
+         super.b(packetdataserializer);
+-        packetdataserializer.writeByte(this.b);
+-        packetdataserializer.writeByte(this.c);
+-        packetdataserializer.writeByte(this.d);
++        if(packetdataserializer.version >= 107) {
++            packetdataserializer.writeShort(this.b);
++            packetdataserializer.writeShort(this.c);
++            packetdataserializer.writeShort(this.d);
++        } else {
++            packetdataserializer.writeByte(this.b);
++            packetdataserializer.writeByte(this.c);
++            packetdataserializer.writeByte(this.d);
++        }
+         // Spigot start - protocol patch
+         if ( packetdataserializer.version >= 22 )
+         {
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMoveLook.java b/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMoveLook.java
+index 2ad234b..6a964ef 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMoveLook.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutRelEntityMoveLook.java
+@@ -30,9 +30,15 @@ public class PacketPlayOutRelEntityMoveLook extends PacketPlayOutEntity {
+ 
+     public void b(PacketDataSerializer packetdataserializer) {
+         super.b(packetdataserializer);
+-        packetdataserializer.writeByte(this.b);
+-        packetdataserializer.writeByte(this.c);
+-        packetdataserializer.writeByte(this.d);
++        if(packetdataserializer.version >= 107) {
++            packetdataserializer.writeShort(this.b);
++            packetdataserializer.writeShort(this.c);
++            packetdataserializer.writeShort(this.d);
++        } else {
++            packetdataserializer.writeByte(this.b);
++            packetdataserializer.writeByte(this.c);
++            packetdataserializer.writeByte(this.d);
++        }
+         packetdataserializer.writeByte(this.e);
+         packetdataserializer.writeByte(this.f);
+         // Spigot start - protocol patch
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
+index b1faa6d..6bb7a70 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutSpawnEntity.java
+@@ -68,13 +68,23 @@ public class PacketPlayOutSpawnEntity extends Packet {
+     public void a(PacketDataSerializer packetdataserializer) {
+         this.a = packetdataserializer.a();
+         this.j = packetdataserializer.readByte();
+-        this.b = packetdataserializer.readInt();
+-        this.c = packetdataserializer.readInt();
+-        this.d = packetdataserializer.readInt();
++        // Protocol Hack 1.9 Start
++        if(packetdataserializer.version >= 107) {
++            this.b = (int) packetdataserializer.readDouble();
++            this.c = (int) packetdataserializer.readDouble();
++            this.d = (int) packetdataserializer.readDouble();
++        } else {
++            this.b = packetdataserializer.readInt();
++            this.c = packetdataserializer.readInt();
++            this.d = packetdataserializer.readInt();
++        }
++        // End
+         this.h = packetdataserializer.readByte();
+         this.i = packetdataserializer.readByte();
+         this.k = packetdataserializer.readInt();
+-        if (this.k > 0) {
++        // Protocol Hack 1.9 Start
++        if (this.k > 0 || packetdataserializer.version >= 107) { // required since 1.9
++            // End
+             this.e = packetdataserializer.readShort();
+             this.f = packetdataserializer.readShort();
+             this.g = packetdataserializer.readShort();
+@@ -120,13 +130,21 @@ public class PacketPlayOutSpawnEntity extends Packet {
+             this.c -= 16;
+         }
+         // Spigot end
+-        packetdataserializer.writeInt(this.b);
+-        packetdataserializer.writeInt(this.c);
+-        packetdataserializer.writeInt(this.d);
++        // Protocol Hack 1.9 Start
++        if(packetdataserializer.version >= 107) {
++            packetdataserializer.writeDouble(this.b);
++            packetdataserializer.writeDouble(this.c);
++            packetdataserializer.writeDouble(this.d);
++        } else {
++            packetdataserializer.writeInt(this.b);
++            packetdataserializer.writeInt(this.c);
++            packetdataserializer.writeInt(this.d);
++        }
++        // End
+         packetdataserializer.writeByte(this.h);
+         packetdataserializer.writeByte(this.i);
+         packetdataserializer.writeInt(this.k);
+-        if (this.k > 0) {
++        if (this.k > 0 || packetdataserializer.version >= 107) {  // Protocol Hack 1.9
+             packetdataserializer.writeShort(this.e);
+             packetdataserializer.writeShort(this.f);
+             packetdataserializer.writeShort(this.g);
+-- 
+1.9.4.msysgit.1
+
