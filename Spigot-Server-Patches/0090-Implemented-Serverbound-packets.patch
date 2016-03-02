@@ -1,0 +1,245 @@
+From c808d3669ebb4ef644be59140c808861e97ee5fd Mon Sep 17 00:00:00 2001
+From: lukas81298 <lukas81298@gmail.com>
+Date: Wed, 2 Mar 2016 15:19:37 +0100
+Subject: [PATCH] Implemented Serverbound packets
+
+
+diff --git a/src/main/java/me/lukas81298/protocol/PacketPlayInSteerBoat.java b/src/main/java/me/lukas81298/protocol/PacketPlayInSteerBoat.java
+new file mode 100644
+index 0000000..b2147bc
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/PacketPlayInSteerBoat.java
+@@ -0,0 +1,31 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketDataSerializer;
++import net.minecraft.server.PacketListener;
++
++import java.io.IOException;
++
++/**
++ * Created by xxx on 02.03.2016.
++ */
++public class PacketPlayInSteerBoat extends Packet {
++
++    public boolean bool1, bool2;
++
++    @Override
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        bool1 = packetdataserializer.readBoolean(); // unknown so far
++        bool2 = packetdataserializer.readBoolean();
++    }
++
++    @Override
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++
++    }
++
++    @Override
++    public void handle(PacketListener packetlistener) {
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/PacketPlayInTeleportConfirm.java b/src/main/java/me/lukas81298/protocol/PacketPlayInTeleportConfirm.java
+new file mode 100644
+index 0000000..524dca7
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/PacketPlayInTeleportConfirm.java
+@@ -0,0 +1,35 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketDataSerializer;
++import net.minecraft.server.PacketListener;
++
++import java.io.IOException;
++
++/**
++ * Created by xxx on 02.03.2016.
++ */
++public class PacketPlayInTeleportConfirm extends Packet {
++
++    public int telportid;
++
++
++    public int getTeleportId() {
++        return this.telportid;
++    }
++
++    @Override
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        this.telportid = packetdataserializer.a();
++    }
++
++    @Override
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++
++    }
++
++    @Override
++    public void handle(PacketListener packetlistener) {
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/PacketPlayInUseItem.java b/src/main/java/me/lukas81298/protocol/PacketPlayInUseItem.java
+new file mode 100644
+index 0000000..5fa07b5
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/PacketPlayInUseItem.java
+@@ -0,0 +1,30 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketDataSerializer;
++import net.minecraft.server.PacketListener;
++
++import java.io.IOException;
++
++/**
++ * Created by xxx on 02.03.2016.
++ */
++public class PacketPlayInUseItem extends Packet {
++
++    public int hand;
++
++    @Override
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        this.hand = packetdataserializer.a();
++    }
++
++    @Override
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++
++    }
++
++    @Override
++    public void handle(PacketListener packetlistener) {
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/PacketPlayInVehicleMove.java b/src/main/java/me/lukas81298/protocol/PacketPlayInVehicleMove.java
+new file mode 100644
+index 0000000..cbb44d4
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/PacketPlayInVehicleMove.java
+@@ -0,0 +1,35 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.Packet;
++import net.minecraft.server.PacketDataSerializer;
++import net.minecraft.server.PacketListener;
++
++import java.io.IOException;
++
++/**
++ * Created by xxx on 02.03.2016.
++ */
++public class PacketPlayInVehicleMove extends Packet {
++
++    public double x,y,z;
++    public float yaw, pitch;
++
++    @Override
++    public void a(PacketDataSerializer packetdataserializer) throws IOException {
++        x = packetdataserializer.readDouble();
++        y = packetdataserializer.readDouble();
++        z = packetdataserializer.readDouble();
++        yaw = packetdataserializer.readFloat();
++        pitch = packetdataserializer.readFloat();
++    }
++
++    @Override
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++
++    }
++
++    @Override
++    public void handle(PacketListener packetlistener) {
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java b/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java
+index 5a56b9b..5d94efe 100644
+--- a/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java
++++ b/src/main/java/me/lukas81298/protocol/ProtocolConversionClient.java
+@@ -33,7 +33,7 @@ public class ProtocolConversionClient {
+     }
+ 
+     static {
+-        // new packet 0x00 teleport confirm
++        a(0xE2, 0x00); // new packet 0x00 teleport confirm
+         a(0x14, 0x01);
+         a(0x01, 0x02);
+         a(0x16, 0x03);
+@@ -49,8 +49,8 @@ public class ProtocolConversionClient {
+         a(0x06, 0x0D);
+         a(0x05, 0x0E);
+         a(0x03, 0x0F);
+-        // new packet 0x10 vehicle move
+-        // new packet 0x11 steer boat
++        a(0xE4, 0x10); // new packet 0x10 vehicle move
++        a(0xE1, 0x11); // new packet 0x11 steer boat
+         a(0x13, 0x12);
+         a(0x07, 0x13);
+         a(0x0B, 0x14);
+@@ -62,7 +62,7 @@ public class ProtocolConversionClient {
+         a(0x0A, 0x1A);
+         a(0x18, 0x1B);
+         a(0x08, 0x1C);
+-        // new packet 0x1C use item
++        a(0xE3, 0x1D); // new packet 0x1D use item
+ 
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/DedicatedServer.java b/src/main/java/net/minecraft/server/DedicatedServer.java
+index 38b76ba..81e74b9 100644
+--- a/src/main/java/net/minecraft/server/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/DedicatedServer.java
+@@ -70,7 +70,7 @@ public class DedicatedServer extends MinecraftServer implements IMinecraftServer
+         System.setErr(new PrintStream(new LoggerOutputStream(logger, Level.WARN), true));
+         // CraftBukkit end
+ 
+-        i.info("Starting minecraft server version 1.7.10");
++        i.info("Starting minecraft server version 1.7.10 (Protocol Hack 1.9)");
+         if (Runtime.getRuntime().maxMemory() / 1024L / 1024L < 512L) {
+             i.warn("To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"");
+         }
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index a9b7d5c..80168e4 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -819,7 +819,7 @@ public abstract class MinecraftServer implements ICommandListener, Runnable, IMo
+ 
+     public static void main(final OptionSet options) { // CraftBukkit - replaces main(String[] astring)
+         DispenserRegistry.b();
+-        org.spigotmc.ProtocolInjector.inject();
++        org.spigotmc.ProtocolInjector.inject(); // Protocol Hack 1.8/1.9
+ 
+         try {
+             /* CraftBukkit start - Replace everything
+diff --git a/src/main/java/org/spigotmc/ProtocolInjector.java b/src/main/java/org/spigotmc/ProtocolInjector.java
+index 0e021ae..45a18c1 100644
+--- a/src/main/java/org/spigotmc/ProtocolInjector.java
++++ b/src/main/java/org/spigotmc/ProtocolInjector.java
+@@ -39,11 +39,17 @@ public class ProtocolInjector
+     public static void injectNewPackets() {
+         try
+         {
++            // Server Sides 1.9 Packets prefixed with 0xF
+             addPacket( EnumProtocol.PLAY, true, 0xF1, PacketPlayOutBossBar.class);
+             addPacket( EnumProtocol.PLAY, true, 0xF2, PacketPlayOutCooldown.class);
+             addPacket( EnumProtocol.PLAY, true, 0xF3, PacketPlayOutPassengers.class);
+             addPacket( EnumProtocol.PLAY, true, 0xF4, PacketPlayOutUnloadChunk.class);
+             addPacket( EnumProtocol.PLAY, true, 0xF5, PacketPlayOutVehicleMove.class);
++            // Client Sided 1.9 Packets prefixed width 0xE
++            addPacket(EnumProtocol.PLAY, false, 0xE1, PacketPlayInSteerBoat.class);
++            addPacket(EnumProtocol.PLAY, false, 0xE2, PacketPlayInTeleportConfirm.class);
++            addPacket(EnumProtocol.PLAY, false, 0xE3, PacketPlayInUseItem.class);
++            addPacket(EnumProtocol.PLAY, false, 0xE4, PacketPlayInVehicleMove.class);
+ 
+         } catch ( NoSuchFieldException e )
+         {
+-- 
+1.9.4.msysgit.1
+
