@@ -9,20 +9,20 @@
         <version>7</version>
     </parent>
 
-    <groupId>me.lukas81298.protocolhack</groupId>
+    <groupId>org.github.paperspigot</groupId>
     <artifactId>paperspigot-parent</artifactId>
     <version>dev-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>ProtocolHack Spigot Parent</name>
+    <name>Protocol Hack Spigot Parent</name>
     <description>Parent project for all ProtocolHack Spigot 1.9 modules.</description>
     <url>https://github.com/lukas81298/Paper-1.7</url>
 
     <modules>
         <module>MinecraftServer</module>
         <module>MinecraftRelocate</module>
-        <module>ProtocolHackSpigot-Server</module>
-        <module>ProtocolHackSpigot-API</module>
+        <module>PaperSpigot-Server</module>
+        <module>PaperSpigot-API</module>
     </modules>
 
     <properties>
