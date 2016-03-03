@@ -38,6 +38,6 @@ echo "Applying SpigotMC patches to CraftBukkit and Bukkit"
 echo
 applyPatch Bukkit Spigot-API && applyPatch CraftBukkit Spigot-Server
 echo
-echo "Applying PaperSpigot patches to Spigot-Server and Spigot-API"
+echo "Applying Protocol Hack patches to Spigot-Server and Spigot-API"
 echo
-applyPatch Spigot-API PaperSpigot-API && applyPatch Spigot-Server PaperSpigot-Server
+applyPatch Spigot-API ProtocolHackSpigot-API && applyPatch Spigot-Server ProtocolHackSpigot-Server
