@@ -1,0 +1,341 @@
+From ef230c04a96ba08c3e1fb67becf943f7cb299723 Mon Sep 17 00:00:00 2001
+From: lukas81298 <lukas81298@gmail.com>
+Date: Thu, 3 Mar 2016 18:50:40 +0100
+Subject: [PATCH] Changed how chunks are encoded in 1.9 (not working :()
+
+
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 667b1f8..02a914b 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -478,6 +478,12 @@ public class Chunk {
+         return block;
+     }
+ 
++    // Protocol Hack 1.9
++    public World getWorld() {
++        return this.world;
++    }
++    // End
++
+     public int getData(int i, int j, int k) {
+         if (j >> 4 >= this.sections.length) {
+             return 0;
+diff --git a/src/main/java/net/minecraft/server/NibbleArray.java b/src/main/java/net/minecraft/server/NibbleArray.java
+index 5d75a54..52cf48e 100644
+--- a/src/main/java/net/minecraft/server/NibbleArray.java
++++ b/src/main/java/net/minecraft/server/NibbleArray.java
+@@ -26,6 +26,12 @@ public class NibbleArray {
+         return j1 == 0 ? this.a[i1] & 15 : this.a[i1] >> 4 & 15;
+     }
+ 
++    // Protocol Hack 1.9
++    public byte[] getBytes() {
++        return this.a;
++    }
++    // End
++
+     public void a(int i, int j, int k, int l) {
+         int i1 = j << this.c | k << this.b | i;
+         int j1 = i1 >> 1;
+diff --git a/src/main/java/net/minecraft/server/PacketEncoder.java b/src/main/java/net/minecraft/server/PacketEncoder.java
+index 93b50b8..18182e1 100644
+--- a/src/main/java/net/minecraft/server/PacketEncoder.java
++++ b/src/main/java/net/minecraft/server/PacketEncoder.java
+@@ -21,11 +21,15 @@ public class PacketEncoder extends MessageToByteEncoder {
+     }
+ 
+     protected void a(ChannelHandlerContext channelhandlercontext, Packet packet, ByteBuf bytebuf) throws IOException {
++        /*if(packet instanceof PacketPlayOutMapChunk || packet instanceof PacketPlayOutSpawnEntityLiving || packet instanceof  PacketPlayOutSpawnEntity) {
++            System.out.println("Skipped Chunk Packet");
++            return;
++        }*/
+         BiMap<?,?> bimap = ((BiMap) channelhandlercontext.channel().attr(NetworkManager.f).get());
+         if(debug) System.out.println("Sending: " + packet.getClass().getName());
+         Integer integer = (Integer) bimap.inverse().get(packet.getClass());
+         int version = NetworkManager.getVersion(channelhandlercontext.channel());
+-        if(version >= 107 && ProtocolConversionServer.isPacketRemoved(integer.intValue()) && bimap.size() > 5){
++        if(version >= 107 && ProtocolConversionServer.isPacketRemoved(integer) && bimap.size() > 5){
+             if(debug) System.out.println("[WARNING] Packet " + integer + " has been removed in Minecraft 1.9."); // Packet has been removed in Minecraft 1.9+;
+             return;
+         }
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index 8d0edf1..8bfe53a 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -19,7 +19,8 @@ public class PacketPlayOutMapChunk extends Packet {
+ 
+     private Chunk chunk; // Spigot
+     private int mask; // Spigot
+-
++    private byte[] newarray;
++    private int newmask;
+     public PacketPlayOutMapChunk() {}
+ 
+     // Spigot start - protocol patch
+@@ -35,6 +36,10 @@ public class PacketPlayOutMapChunk extends Packet {
+         this.c = chunkmap.b;
+ 
+         this.f = chunkmap.a;
++
++        boolean flag1 = !chunk.getWorld().worldProvider.m();
++
++        newarray = new byte[a(chunk, flag, flag1, i)];
+     }
+ 
+     public static int c() {
+@@ -42,6 +47,7 @@ public class PacketPlayOutMapChunk extends Packet {
+     }
+ 
+     public void a(PacketDataSerializer packetdataserializer) throws IOException {
++
+         this.a = packetdataserializer.readInt();
+         this.b = packetdataserializer.readInt();
+         this.g = packetdataserializer.readBoolean();
+@@ -80,12 +86,16 @@ public class PacketPlayOutMapChunk extends Packet {
+         }
+     }
+ 
+-    public void b(PacketDataSerializer packetdataserializer) {
+-        packetdataserializer.writeInt(this.a);
+-        packetdataserializer.writeInt(this.b);
+-        packetdataserializer.writeBoolean(this.g);
++    public void b(PacketDataSerializer packetdataserializer) throws IOException {
++        if(packetdataserializer.version >= 107) {
++            this.serializePacket19(packetdataserializer);
++            return;
++        }
++        packetdataserializer.writeInt(this.a); // Chunk X
++        packetdataserializer.writeInt(this.b); // Chunk Y
++        packetdataserializer.writeBoolean(this.g); // Ground-Up Continuous
+         if(packetdataserializer.version >= 107) { // Protocol Hack 1.9
+-            packetdataserializer.b(this.c & '\uffff'); // Short -> VarInt
++            packetdataserializer.b((int) (this.c & '\uffff')); // Short -> VarInt Primary Bit Mask
+         } else {
+             packetdataserializer.writeShort((short) (this.c & '\uffff'));
+         }
+@@ -105,14 +115,32 @@ public class PacketPlayOutMapChunk extends Packet {
+             packetdataserializer.writeShort( (short) ( this.d & '\uffff' ) );
+             packetdataserializer.writeInt( this.h );
+             packetdataserializer.writeBytes( this.e, 0, this.h );
+-        } else
+-        {
+-            chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, true); // Spigot
++        } else {
++            // Protocol Hack 1.9
++            if(packetdataserializer.version < 107){
++                chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, true); // Spigot
++            }
++            // End
+             a( packetdataserializer, this.f );
+         }
+         // Spigot end - protocol patch
+     }
+ 
++    public void serializePacket19(PacketDataSerializer packetdataserializer) throws IOException {
++
++        packetdataserializer.writeInt(this.chunk.locX); // Write chunk's x coordinate to the stream
++
++        packetdataserializer.writeInt(this.chunk.locZ); // Write chunk's z coordinate to the stream
++
++        packetdataserializer.writeBoolean(this.g);
++
++        packetdataserializer.b(this.newmask);
++
++        packetdataserializer.b(this.newarray.length);
++
++        packetdataserializer.writeBytes(this.newarray);
++
++    }
+     public void a(PacketPlayOutListener packetplayoutlistener) {
+         packetplayoutlistener.a(this);
+     }
+@@ -242,8 +270,59 @@ public class PacketPlayOutMapChunk extends Packet {
+     }
+     // Spigot end - protocol patch
+ 
++    protected static int getBitMask(Chunk chunk, boolean flag, boolean flag1, int i) {
++        int j = 0;
++        ChunkSection[] achunksection = chunk.getSections();
++        int k = 0;
++
++        for (int l = achunksection.length; k < l; ++k) {
++            ChunkSection chunksection = achunksection[k];
++
++            if ((!flag || !chunksection.isEmpty()) && (i & 1 << k) != 0) {
++                j += chunksection.getBlocks().a();
++                j += chunksection.getEmittedLightArray().getBytes().length;
++                if (flag1) {
++                    j += chunksection.getSkyLightArray().getBytes().length;
++                }
++            }
++        }
++
++        if (flag) {
++            j += chunk.m().length; // getBiomeIndex
++        }
++
++        return j;
++    }
++
++    public static int a(PacketDataSerializer packetdataserializer, Chunk chunk, boolean flag, boolean flag1, int i) {
++        int j = 0;
++        ChunkSection[] achunksection = chunk.getSections();
++        int k = 0;
++
++        for (int l = achunksection.length; k < l; ++k) {
++            ChunkSection chunksection = achunksection[k];
++
++            if ((!flag || !chunksection.isEmpty()) && (i & 1 << k) != 0) {
++                j |= 1 << k;
++                chunksection.getBlocks().b(packetdataserializer);
++                packetdataserializer.writeBytes(chunksection.getEmittedLightArray().getBytes());
++                if (flag1) {
++                    packetdataserializer.writeBytes(chunksection.getSkyLightArray().getBytes());
++                }
++            }
++        }
++
++        if (flag) {
++            packetdataserializer.writeBytes(chunk.m());
++        }
++
++        return j;
++    }
++
++
+     @Override
+     public void handle(PacketListener packetlistener) {
+         this.a((PacketPlayOutListener) packetlistener);
+     }
++
+ }
+diff --git a/src/main/java/net/minecraft/server/WorldProvider.java b/src/main/java/net/minecraft/server/WorldProvider.java
+new file mode 100644
+index 0000000..f5bd56f
+--- /dev/null
++++ b/src/main/java/net/minecraft/server/WorldProvider.java
+@@ -0,0 +1,120 @@
++//
++// Source code recreated from a .class file by IntelliJ IDEA
++// (powered by Fernflower decompiler)
++//
++
++package net.minecraft.server;
++
++import net.minecraft.server.BiomeBase;
++import net.minecraft.server.Blocks;
++import net.minecraft.server.ChunkCoordinates;
++import net.minecraft.server.ChunkProviderFlat;
++import net.minecraft.server.ChunkProviderGenerate;
++import net.minecraft.server.IChunkProvider;
++import net.minecraft.server.World;
++import net.minecraft.server.WorldChunkManager;
++import net.minecraft.server.WorldChunkManagerHell;
++import net.minecraft.server.WorldGenFlatInfo;
++import net.minecraft.server.WorldProviderHell;
++import net.minecraft.server.WorldProviderNormal;
++import net.minecraft.server.WorldProviderTheEnd;
++import net.minecraft.server.WorldType;
++
++public abstract class WorldProvider {
++    public static final float[] a = new float[]{1.0F, 0.75F, 0.5F, 0.25F, 0.0F, 0.25F, 0.5F, 0.75F};
++    public World b;
++    public WorldType type;
++    public String d;
++    public WorldChunkManager e;
++    public boolean f;
++    public boolean g;
++    public float[] h = new float[16];
++    public int dimension;
++    private float[] j = new float[4];
++
++    public WorldProvider() {
++    }
++
++    public boolean m() {
++        return this.g;
++    }
++
++    public final void a(World var1) {
++        this.b = var1;
++        this.type = var1.getWorldData().getType();
++        this.d = var1.getWorldData().getGeneratorOptions();
++        this.b();
++        this.a();
++    }
++
++    protected void a() {
++        float var1 = 0.0F;
++
++        for(int var2 = 0; var2 <= 15; ++var2) {
++            float var3 = 1.0F - (float)var2 / 15.0F;
++            this.h[var2] = (1.0F - var3) / (var3 * 3.0F + 1.0F) * (1.0F - var1) + var1;
++        }
++
++    }
++
++    protected void b() {
++        if(this.b.getWorldData().getType() == WorldType.FLAT) {
++            WorldGenFlatInfo var1 = WorldGenFlatInfo.a(this.b.getWorldData().getGeneratorOptions());
++            this.e = new WorldChunkManagerHell(BiomeBase.getBiome(var1.a()), 0.5F);
++        } else {
++            this.e = new WorldChunkManager(this.b);
++        }
++
++    }
++
++    public IChunkProvider getChunkProvider() {
++        return (IChunkProvider)(this.type == WorldType.FLAT?new ChunkProviderFlat(this.b, this.b.getSeed(), this.b.getWorldData().shouldGenerateMapFeatures(), this.d):new ChunkProviderGenerate(this.b, this.b.getSeed(), this.b.getWorldData().shouldGenerateMapFeatures()));
++    }
++
++    public boolean canSpawn(int var1, int var2) {
++        return this.b.b(var1, var2) == Blocks.GRASS;
++    }
++
++    public float a(long var1, float var3) {
++        int var4 = (int)(var1 % 24000L);
++        float var5 = ((float)var4 + var3) / 24000.0F - 0.25F;
++        if(var5 < 0.0F) {
++            ++var5;
++        }
++
++        if(var5 > 1.0F) {
++            --var5;
++        }
++
++        float var6 = var5;
++        var5 = 1.0F - (float)((Math.cos((double)var5 * 3.141592653589793D) + 1.0D) / 2.0D);
++        var5 = var6 + (var5 - var6) / 3.0F;
++        return var5;
++    }
++
++    public int a(long var1) {
++        return (int)(var1 / 24000L % 8L + 8L) % 8;
++    }
++
++    public boolean d() {
++        return true;
++    }
++
++    public boolean e() {
++        return true;
++    }
++
++    public static WorldProvider byDimension(int var0) {
++        return (WorldProvider)(var0 == -1?new WorldProviderHell():(var0 == 0?new WorldProviderNormal():(var0 == 1?new WorldProviderTheEnd():null)));
++    }
++
++    public ChunkCoordinates h() {
++        return null;
++    }
++
++    public int getSeaLevel() {
++        return this.type == WorldType.FLAT?4:64;
++    }
++
++    public abstract String getName();
++}
+-- 
+1.9.4.msysgit.1
+
