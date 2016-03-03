@@ -16,13 +16,13 @@
 
     <name>Protocol Hack Spigot Parent</name>
     <description>Parent project for all ProtocolHack Spigot 1.9 modules.</description>
-    <url>https://github.com/lukas81298/Paper-1.7</url>
+    <url>https://github.com/lukas81298/ProtocolHack-1.9</url>
 
     <modules>
         <module>MinecraftServer</module>
         <module>MinecraftRelocate</module>
-        <module>PaperSpigot-Server</module>
-        <module>PaperSpigot-API</module>
+        <module>ProtocolHackSpigot-Server</module>
+        <module>ProtocolHackSpigot-API</module>
     </modules>
 
     <properties>
