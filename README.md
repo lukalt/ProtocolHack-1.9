@@ -1,8 +1,8 @@
 #PaperSpigot Protocol Hack 1.7-1.9
 
-This is my fork of the PaperSpigot Project which aims to support all Minecraft Versions from 1.7.2 to 1.9. Installation instructions can be found below. This 
+This is my fork of the PaperSpigot Project which aims to support all Minecraft Versions from 1.7.2 to 1.9. Installation instructions can be found below. 
 
-PaperSpigot 1.7 itself is no longer maintained by the original developers.
+This PaperSpigot 1.7 itself is no longer maintained by the original developers.
 
 
 ###Quick Installation Guide:
