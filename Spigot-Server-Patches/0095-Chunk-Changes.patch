@@ -1,0 +1,224 @@
+From c098a08857b4f8a05a22b928de974dbb6d912d33 Mon Sep 17 00:00:00 2001
+From: lukas81298 <lukas81298@gmail.com>
+Date: Sun, 6 Mar 2016 17:10:38 +0100
+Subject: [PATCH] Chunk Changes
+
+
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index b07bb65..86d645e 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -1,6 +1,8 @@
+ package net.minecraft.server;
+ 
+ import me.lukas81298.protocol.VariableValueArray;
++import net.minecraft.util.io.netty.buffer.ByteBuf;
++import net.minecraft.util.io.netty.buffer.Unpooled;
+ 
+ import java.io.IOException;
+ import java.util.zip.DataFormatException;
+@@ -94,107 +96,122 @@ public class PacketPlayOutMapChunk extends Packet {
+ 
+ 
+     public void b(PacketDataSerializer packetdataserializer) throws IOException {
+-        if(packetdataserializer.version >= 107) {
+-            this.serializePacket19(packetdataserializer);
+-            return;
+-        }
++
+         packetdataserializer.writeInt(this.a); // Chunk X
+         packetdataserializer.writeInt(this.b); // Chunk Y
+-        packetdataserializer.writeBoolean(this.g); // Ground-Up Continuous
+-        if(packetdataserializer.version >= 107) { // Protocol Hack 1.9
+-            packetdataserializer.b((int) (this.c & '\uffff')); // Short -> VarInt Primary Bit Mask
+-        } else {
++
++        packetdataserializer.writeBoolean(this.g); // Whole chunk?
++
++        // Protocol Hack 1.9
++        if(packetdataserializer.version < 107) {
+             packetdataserializer.writeShort((short) (this.c & '\uffff'));
+         }
+-        // Spigot start - protocol patch
+-        if ( packetdataserializer.version < 27 )
+-        {
+-            chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, false); // Spigot
+-            Deflater deflater = new Deflater(4); // Spigot
+-            try {
+-                deflater.setInput(this.f, 0, this.f.length);
+-                deflater.finish();
+-                this.e = new byte[this.f.length];
+-                this.h = deflater.deflate(this.e);
+-            } finally {
+-                deflater.end();
+-            }
+-            packetdataserializer.writeShort( (short) ( this.d & '\uffff' ) );
+-            packetdataserializer.writeInt( this.h );
+-            packetdataserializer.writeBytes( this.e, 0, this.h );
++        // Protocol Hack 1.9 End
++
++        if ( packetdataserializer.version < 27 ) {
++            writeDataPre18(packetdataserializer); // Protocol Hack 1.9 => Moved to external method
++        } else if(packetdataserializer.version < 107){
++            writeData18(packetdataserializer); // Protocol Hack 1.9 => Moved to external method
+         } else {
+-            // Protocol Hack 1.9
+-            if(packetdataserializer.version < 107){
+-                chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, true); // Spigot
+-            }
+-            // End
+-            a(packetdataserializer, this.f );
++            writeData19(packetdataserializer);
+         }
+-        // Spigot end - protocol patch
+-    }
+-
+-    // Protocol Hack 1.9 Start
+-    public void serializePacket19(PacketDataSerializer packetdataserializer) throws IOException {
+-
+-        boolean overworld = chunk.getWorld().worldProvider.dimension == 0;
+-        packetdataserializer.writeInt(this.chunk.locX); // Write chunk's x coordinate to the stream
+ 
+-        packetdataserializer.writeInt(this.chunk.locZ); // Write chunk's z coordinate to the stream
+-
+-        packetdataserializer.writeBoolean(this.g);
++    }
+ 
+-        int bitmask = 0x0; // Bitmask
++    private void writeData19(PacketDataSerializer packetdataserializer) {
++        int sectionBitmask = 0;
++        boolean overworld = this.chunk.world.worldProvider.dimension == 0;
+ 
+-        if (this.chunk.getSections() != null) {
+-            int maxBitmask = (1 << this.chunk.getSections().length) - 1;
+-            if (this.g) { // Is this the whole chunk?
+-                bitmask = maxBitmask;
++        ChunkSection[] sections = this.chunk.getSections();
++        // filter sectionBitmask based on actual chunk contents
++        if (sections != null) {
++            final int maxBitmask = (1 << sections.length) - 1;
++            if (this.g) {
++                sectionBitmask = maxBitmask;
+             } else {
+-                bitmask &= maxBitmask;
++                sectionBitmask &= maxBitmask;
+             }
+ 
+-            for (int i = 0; i < this.chunk.getSections().length; ++i) {
+-                if (this.chunk.getSections()[i] == null || this.chunk.getSections()[i].isEmpty()) { // Skip empty chunks
+-                    bitmask &= ~(1 << i);
++            for (int i = 0; i < sections.length; ++i) {
++                if (sections[i] == null || sections[i].isEmpty()) {
++                    // remove empty sections from bitmask
++                    sectionBitmask &= ~(1 << i);
+                 }
+             }
+         }
+ 
+-        if (this.chunk.getSections() != null) {
++        ByteBuf buf = Unpooled.buffer();
++
++        if (sections != null) {
+             // get the list of sections
+-            for (int i = 0; i < this.chunk.getSections().length; ++i) {
+-                if ((bitmask & (1 << i)) == 0) {
++            for (int i = 0; i < sections.length; ++i) {
++                if ((sectionBitmask & (1 << i)) == 0) {
+                     continue;
+                 }
+-                ChunkSection chunkSection = this.chunk.getSections()[i];
+-                VariableValueArray array = new VariableValueArray(13, this.chunk.getSections().length);
+-                packetdataserializer.writeByte(0);
+-                for (int j = 0; j < chunkSection.getIdArray().length; j++) {
+-                    array.set(j, chunkSection.getIdArray()[j]);
++                ChunkSection section = sections[i];
++                VariableValueArray array = new VariableValueArray(13, section.getIdArray().length);
++                buf.writeByte(array.getBitsPerValue()); // Bit per value -> Currently fixed at 13!!!
++                writeVarInt(buf, 0); // Palette size -> 0 -> Use the global palette
++                for (int j = 0; j < section.getIdArray()[j]; j++) {
++                    array.set(j, section.getIdArray()[j]);
+                 }
+                 long[] backing = array.getBacking();
+-                packetdataserializer.b(backing.length);
+-                packetdataserializer.ensureWritable(backing.length * 8 + chunkSection.getEmittedLightArray().getBytes().length + (overworld ? chunkSection.getSkyLightArray().getBytes().length : 0));
++                writeVarInt(buf, backing.length);
++                buf.ensureWritable(backing.length * 8 + section.getEmittedLightArray().getBytes().length + (overworld ? section.getSkyLightArray().getBytes().length : 0));
+                 for (long value : backing) {
+-                    packetdataserializer.writeLong(value);
++                    buf.writeLong(value);
+                 }
+-                packetdataserializer.writeBytes(chunkSection.getEmittedLightArray().getBytes());
+-
+-                if(overworld) {
+-                    packetdataserializer.writeBytes(chunkSection.getSkyLightArray().getBytes());
++                buf.writeBytes(section.getEmittedLightArray().getBytes());
++                if (overworld) {
++                    buf.writeBytes(section.getSkyLightArray().getBytes());
+                 }
+             }
+         }
+ 
++        // biomes
++        if (this.g) {
++            System.out.println(this.chunk.m().length + " skylight"); // Debug
++            buf.writeBytes(this.chunk.m()); // Todo!
++        }
+ 
+-        if(this.g) {
+-            // TODO: Change this. Just a temp. solution as there is only one biome!
+-            for(int i = 0; i < 0x100; i++) {
+-                packetdataserializer.writeByte(0);
+-            }
++        // Write Data
++        packetdataserializer.writeInt(this.a);
++        packetdataserializer.writeInt(this.b);
++        packetdataserializer.writeBoolean(this.g);
++        packetdataserializer.b(sectionBitmask);
++        packetdataserializer.b(buf.readableBytes());
++        packetdataserializer.writeBytes(buf);
++    }
++
++    public void writeVarInt(ByteBuf bb, int i) {
++        while ((i & -128) != 0) {
++            bb.writeByte(i & 127 | 128);
++            i >>>= 7;
+         }
++        bb.writeByte(i);
++    }
++
++
++    private void writeData18(PacketDataSerializer packetdataserializer) {
++        chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, true); // Spigot
++        a(packetdataserializer, this.f );
++    }
++
++    private void writeDataPre18(PacketDataSerializer packetdataserializer) {
++        chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, false); // Spigot
++        Deflater deflater = new Deflater(4); // Spigot
++        try {
++            deflater.setInput(this.f, 0, this.f.length);
++            deflater.finish();
++            this.e = new byte[this.f.length];
++            this.h = deflater.deflate(this.e);
++        } finally {
++            deflater.end();
++        }
++        packetdataserializer.writeShort( (short) ( this.d & '\uffff' ) );
++        packetdataserializer.writeInt( this.h );
++        packetdataserializer.writeBytes( this.e, 0, this.h );
+     }
+-    // Protocol Hack 1.9 End
+ 
+     public void a(PacketPlayOutListener packetplayoutlistener) {
+         packetplayoutlistener.a(this);
+@@ -325,7 +342,6 @@ public class PacketPlayOutMapChunk extends Packet {
+     }
+     // Spigot end - protocol patch
+ 
+-
+     @Override
+     public void handle(PacketListener packetlistener) {
+         this.a((PacketPlayOutListener) packetlistener);
+-- 
+1.9.4.msysgit.1
+
