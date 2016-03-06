@@ -1,0 +1,920 @@
+From 89970c77dc54cdcd5d849ae0150d545e0c6dcfc8 Mon Sep 17 00:00:00 2001
+From: lukas81298 <lukas81298@gmail.com>
+Date: Sun, 6 Mar 2016 15:19:38 +0100
+Subject: [PATCH] Entity Metadata Conversion and Chunk Data
+
+
+diff --git a/src/main/java/me/lukas81298/protocol/EntityMetaData.java b/src/main/java/me/lukas81298/protocol/EntityMetaData.java
+new file mode 100644
+index 0000000..cd9c71f
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/EntityMetaData.java
+@@ -0,0 +1,148 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.*;
++import org.spigotmc.ProtocolData;
++
++import java.io.IOException;
++import java.util.HashMap;
++import java.util.Map;
++
++/**
++ * Created by xxx on 06.03.2016.
++ */
++public class EntityMetaData {
++
++    public static Map<Integer, EntityMetaDataSerializer> s = new HashMap<Integer, EntityMetaDataSerializer>();
++
++    static {
++        s.put(0, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                p.writeByte(0);
++                if (object instanceof ProtocolData.DualByte )
++                {
++                    ProtocolData.DualByte dualByte = (ProtocolData.DualByte) object;
++                    p.writeByte(dualByte.value2);
++                } else
++                {
++                    p.writeByte( ( (Number) object).byteValue() );
++                }
++            }
++
++        });
++
++        s.put(1, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                p.writeByte(1);
++                Number n = (Number) object;
++                short s =  n.shortValue();
++                p.b((int)s);
++            }
++        });
++
++        s.put(2, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                p.writeByte(1);
++                int val = ((Number) object).intValue();
++                if (object instanceof ProtocolData.DualInt) {
++                    val = ((ProtocolData.DualInt) object).value2;
++                }
++                p.b(val);
++            }
++        });
++
++        s.put(3, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                p.writeByte(2);
++                Number n = (Number) object;
++                p.writeFloat(n.floatValue());
++            }
++        });
++
++        s.put(4, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                if(object instanceof String) {
++                    try {
++                        p.writeByte(3);
++                        p.a((String)object);
++                    } catch (IOException e) {
++                        e.printStackTrace();
++                    }
++                }
++            }
++        });
++
++        s.put(5, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                if(object instanceof ItemStack) {
++                    p.b(5);
++                    p.a((ItemStack)object);
++                }
++            }
++        });
++
++        s.put(6, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                throw new IllegalStateException("Currently not implemented.");
++            }
++
++        });
++
++        s.put(7, new EntityMetaDataSerializer() {
++
++            @Override
++            public void serialize(PacketDataSerializer p, Object object) {
++                throw new IllegalStateException("Currently not implemented.");
++            }
++
++        });
++
++    }
++
++    public static void writeData(Entity entity, PacketDataSerializer packetdataserializer, WatchableObject watchableobject) {
++
++        int type = watchableobject.c();
++
++        Object b = watchableobject.b();
++
++        if (b instanceof ProtocolData.ByteShort) {
++            type = 1;
++        }
++
++        if (b instanceof ProtocolData.IntByte) {
++            type = 0;
++        }
++
++        int id = watchableobject.a();
++
++        id = EntityMetaDataConverter.convert(entity.getClass(), id);
++
++        if(id == -1) {
++            return;
++        }
++
++        if(entity instanceof EntityInsentient && id == 9) {
++            type = 2;
++            b = new Integer(((Number)b).intValue());
++        }
++
++        if(s.containsKey(type)) {
++            packetdataserializer.writeByte(id); // Write Property Identifier
++            s.get(type).serialize(packetdataserializer, b);
++        }
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/EntityMetaDataConverter.java b/src/main/java/me/lukas81298/protocol/EntityMetaDataConverter.java
+new file mode 100644
+index 0000000..9f68001
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/EntityMetaDataConverter.java
+@@ -0,0 +1,123 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.*;
++
++import javax.management.Query;
++import java.util.HashMap;
++import java.util.Map;
++
++/**
++ * Created by xxx on 06.03.2016.
++ */
++public class EntityMetaDataConverter {
++
++    private static Map<Class<? extends Entity>, Map<Integer, Integer>> conversionMap = new HashMap<Class<? extends Entity>, Map<Integer,Integer>>();
++
++    public static int convert(Entity entity, int id) {
++        if(entity instanceof EntityLiving) {
++            id = convert(EntityLiving.class, id);
++        }
++        if(entity instanceof EntityAgeable) {
++            id = convert(EntityAgeable.class, id);
++        }
++        return 0;
++    }
++
++    public static int convert(Class<? extends Entity> entityClass, int identifier) {
++        if(conversionMap.containsKey(entityClass)) {
++            Map<Integer, Integer> c = conversionMap.get(entityClass);
++            if(c.containsKey(identifier)) {
++                return c.get(identifier);
++            }
++            return identifier;
++        }
++        return identifier;
++    }
++
++    public static void registerConversion(Class<? extends Entity> clazz, int oldid, int newid) {
++        Map<Integer, Integer> map = conversionMap.get(clazz);
++        if(map == null) {
++            map = new HashMap<Integer, Integer>();
++            conversionMap.put(clazz, map);
++        }
++        map.put(oldid, newid);
++    }
++
++    static {
++        registerConversions();
++    }
++
++    private static void registerConversions() {
++
++        registerConversion(EntityHuman.class, 10, 12); // Skin Flags
++        registerConversion(EntityHuman.class, 18, 11); // Score Int -> VarInt
++        registerConversion(EntityHuman.class, 17, 10); // Additional Hearths
++
++        registerConversion(EntityItem.class, 10, 5); // Item
++
++        registerConversion(EntityArrow.class, 16, 5); // Arrow is critical
++
++        registerConversion(EntityMinecartAbstract.class, 17, 5);
++        registerConversion(EntityMinecartAbstract.class, 18, 6);
++        registerConversion(EntityMinecartAbstract.class, 19, 7);
++        // important: block data has been seperated into two fields
++        registerConversion(EntityMinecartAbstract.class, 20, -1);
++        registerConversion(EntityMinecartAbstract.class, 21, 9);
++        registerConversion(EntityMinecartAbstract.class, 22, 10);
++
++        registerConversion(EntityZombie.class, 12, 11);
++        registerConversion(EntityZombie.class, 13, 12);
++        registerConversion(EntityZombie.class, 14, 13);
++
++        registerConversion(EntityMinecartFurnace.class, 16, 11);
++
++        registerConversion(EntityFireworks.class, 8, 5);
++
++        registerConversion(EntityItemFrame.class, 8, 5);
++        registerConversion(EntityItemFrame.class, 9, 6);
++
++        registerConversion(EntityWither.class, 17, 11);
++        registerConversion(EntityWither.class, 18, 12);
++        registerConversion(EntityWither.class, 19, 13);
++        registerConversion(EntityWither.class, 20, 14);
++
++        registerConversion(EntityWitch.class, 21, 11);
++
++        registerConversion(EntitySlime.class, 16, 11);
++
++        registerConversion(EntityGhast.class, 16, 11);
++
++        registerConversion(EntityEnderman.class, 16, -1);
++        registerConversion(EntityEnderman.class, 17, -1);
++        registerConversion(EntityEnderman.class, 18, 12);
++
++        registerConversion(EntitySpider.class, 16, 11);
++
++        registerConversion(EntityVillager.class, 16, 12);
++
++        registerConversion(EntitySheep.class, 16, 12);
++
++        registerConversion(EntityPig.class, 16, 12);
++
++        registerConversion(EntityWolf.class, 16, -1);
++        registerConversion(EntityWolf.class, 18, 14);
++        registerConversion(EntityWolf.class, 19, 15);
++        registerConversion(EntityWolf.class, 20, 16);
++
++        registerConversion(EntityOcelot.class, 18, 14);
++
++        registerConversion(EntityTameableAnimal.class, 16, 12);
++        registerConversion(EntityTameableAnimal.class, 17, -1); // Now an optional UUID
++
++        registerConversion(EntityAgeable.class, 12, 11);
++
++        registerConversion(EntityHorse.class, 16, 12);
++        registerConversion(EntityHorse.class, 19,-1);
++        registerConversion(EntityHorse.class, 20,-1);
++        registerConversion(EntityHorse.class, 21,-1);
++        registerConversion(EntityHorse.class, 22,-1);
++
++
++
++    }
++}
+diff --git a/src/main/java/me/lukas81298/protocol/EntityMetaDataSerializer.java b/src/main/java/me/lukas81298/protocol/EntityMetaDataSerializer.java
+new file mode 100644
+index 0000000..3a2f8a1
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/EntityMetaDataSerializer.java
+@@ -0,0 +1,16 @@
++package me.lukas81298.protocol;
++
++import net.minecraft.server.PacketDataSerializer;
++
++import java.util.HashMap;
++import java.util.Map;
++
++/**
++ * Created by xxx on 06.03.2016.
++ */
++public interface EntityMetaDataSerializer  {
++
++
++
++    public void serialize(PacketDataSerializer p, Object object);
++}
+diff --git a/src/main/java/me/lukas81298/protocol/VariableValueArray.java b/src/main/java/me/lukas81298/protocol/VariableValueArray.java
+new file mode 100644
+index 0000000..f3e567e
+--- /dev/null
++++ b/src/main/java/me/lukas81298/protocol/VariableValueArray.java
+@@ -0,0 +1,90 @@
++package me.lukas81298.protocol;
++
++/**
++ * Created by xxx on 06.03.2016.
++ */
++
++public final class VariableValueArray {
++
++    private final long[] backing;
++    private final int capacity;
++    private final int bitsPerValue;
++    private final long valueMask;
++
++    public VariableValueArray(int bitsPerValue, int capacity) {
++        if (capacity < 0) {
++            throw new IllegalArgumentException(String.format("capacity (%s) must not be negative", capacity));
++        }
++        if (bitsPerValue < 1) {
++            throw new IllegalArgumentException(String.format("bitsPerValue (%s) must not be smaller then 1", bitsPerValue));
++        }
++        if (bitsPerValue > 64) {
++            throw new IllegalArgumentException(String.format("bitsPerValue (%s) must not be greater then 64", bitsPerValue));
++        }
++        this.backing = new long[(int) Math.ceil((bitsPerValue * capacity) / 64.0)];
++        this.bitsPerValue = bitsPerValue;
++        this.valueMask = (1L << bitsPerValue) - 1L;
++        this.capacity = capacity;
++    }
++
++    public long[] getBacking() {
++        return this.backing;
++    }
++
++    public int getCapacity() {
++        return this.capacity;
++    }
++
++    public int getBitsPerValue() {
++        return this.bitsPerValue;
++    }
++
++    public int get(int index) {
++        this.checkIndex(index);
++
++        index *= this.bitsPerValue;
++        int i0 = index >> 6;
++        int i1 = index & 0x3f;
++
++        long value = this.backing[i0] >>> i1;
++        int i2 = i1 + this.bitsPerValue;
++        // The value is divided over two long values
++        if (i2 > 64) {
++            value |= this.backing[++i0] << (64 - i1);
++        }
++
++        return (int) (value & this.valueMask);
++    }
++
++    public void set(int index, int value) {
++        this.checkIndex(index);
++
++        if (value < 0) {
++            throw new IllegalArgumentException(String.format("value (%s) must not be negative", value));
++        }
++        if (value > this.valueMask) {
++            throw new IllegalArgumentException(String.format("value (%s) must not be greater then %s", value, this.valueMask));
++        }
++
++        index *= this.bitsPerValue;
++        int i0 = index >> 6;
++        int i1 = index & 0x3f;
++
++        this.backing[i0] = (this.backing[i0] & ~(this.valueMask << i1)) | (value & this.valueMask) << i1;
++        int i2 = i1 + this.bitsPerValue;
++        // The value is divided over two long values
++        if (i2 > 64) {
++            i0++;
++            this.backing[i0] = this.backing[i0] & ~((1L << (i2 - 64)) - 1L) | value >> (64 - i1);
++        }
++    }
++
++    private void checkIndex(int index) {
++        if (index < 0) {
++            throw new IndexOutOfBoundsException(String.format("index (%s) must not be negative", index));
++        }
++        if (index >= this.capacity) {
++            throw new IndexOutOfBoundsException(String.format("index (%s) must not be greater then the capacity (%s)", index, this.capacity));
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/minecraft/server/Chunk.java b/src/main/java/net/minecraft/server/Chunk.java
+index 02a914b..08d231f 100644
+--- a/src/main/java/net/minecraft/server/Chunk.java
++++ b/src/main/java/net/minecraft/server/Chunk.java
+@@ -53,9 +53,10 @@ public class Chunk {
+     private int emptySectionBits;
+ 
+     public ChunkMap getChunkMap(boolean groundUpContinuous, int primaryBitMask, int version) {
+-        if (!world.paperSpigotConfig.cacheChunkMaps || !groundUpContinuous || (primaryBitMask != 0 && primaryBitMask != '\uffff')) {
++        //if (!world.paperSpigotConfig.cacheChunkMaps || !groundUpContinuous || (primaryBitMask != 0 && primaryBitMask != '\uffff')) {
++        // Protocol Hack 1.9 Disabled Chunk Caching because it makes everything even more complicated
+             return PacketPlayOutMapChunk.a(this, groundUpContinuous, primaryBitMask, version);
+-        }
++        /*}
+ 
+         if (primaryBitMask == 0) {
+             ChunkMap chunkMap = new ChunkMap();
+@@ -100,7 +101,7 @@ public class Chunk {
+             }
+ 
+             return chunkMap18;
+-        }
++        }*/
+     }
+     // PaperSpigot end
+ 
+diff --git a/src/main/java/net/minecraft/server/DataWatcher.java b/src/main/java/net/minecraft/server/DataWatcher.java
+index 7bf25b8..088ccb5 100644
+--- a/src/main/java/net/minecraft/server/DataWatcher.java
++++ b/src/main/java/net/minecraft/server/DataWatcher.java
+@@ -5,6 +5,7 @@ import java.util.*;
+ import java.util.concurrent.locks.ReadWriteLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+ 
++import me.lukas81298.protocol.EntityMetaData;
+ import net.minecraft.util.org.apache.commons.lang3.ObjectUtils;
+ import org.spigotmc.ProtocolData; // Spigot - protocol patch
+ 
+@@ -143,138 +144,39 @@ public class DataWatcher {
+     }
+ 
+     // Spigot start - protocol patch
+-    public static void a(List list, PacketDataSerializer packetdataserializer) {
+-        a(list, packetdataserializer, 5);
++    // Protocol Hack 1.9 Start Add Parameter Entity
++    public static void a(Entity entity, List list, PacketDataSerializer packetdataserializer) {
++        a(entity, list, packetdataserializer, 5);
+     }
++    // End
+ 
+-    public static void a(List list, PacketDataSerializer packetdataserializer, int version) {
+-        if(version >= 107) {
+-            DataWatcher.writeData19(list, packetdataserializer, version); // Protocol Hack 1.9 Moved code to another method because a lot changed here
+-            return;
+-        }
++    // Protocol Hack 1.9 => Add Parameter for Entity
++    public static void a(Entity entity, List list, PacketDataSerializer packetdataserializer, int version) {
++        // End
+         // Spigot end - protocol patch
+         if (list != null) {
+             Iterator iterator = list.iterator();
+ 
+             while (iterator.hasNext()) {
+                 WatchableObject watchableobject = (WatchableObject) iterator.next();
+-
+-                a(packetdataserializer, watchableobject, version); // Spigot - protocol patch
++                // Protcol Hack 1.9
++                if(packetdataserializer.version < 107) {
++                    a(packetdataserializer, watchableobject, version); // Spigot - protocol patch
++                } else {
++                    EntityMetaData.writeData(entity, packetdataserializer, watchableobject); // Protocol Hack 1.9
++                }
++                // End
+             }
+         }
+-        packetdataserializer.writeByte(127);
+-    }
+-
+-    public static void writeData19(List list, PacketDataSerializer packetdataserializer, int version) {
+-
+-        if (list != null) { // Check if the list of properties is not null
+-
+-            packetdataserializer.writeByte(0); // Need conversion right now. Just sending NBT data right now because we need to send some kind of data
+-            packetdataserializer.writeByte(0);
+-            packetdataserializer.writeByte(0);
+-
+-            /*Iterator iterator = list.iterator();
+-
+-            while (iterator.hasNext()) { // iterate through the collection
+-
+-                WatchableObject watchableobject = (WatchableObject) iterator.next(); // get the watchable object
+-
+-                writeEntry19(packetdataserializer, watchableobject, version); // write data
+-
+-            }*/
+-
++        // Protocol Hack 1.9
++        if(packetdataserializer.version < 107) {
++            packetdataserializer.writeByte(127);
++        } else {
++            packetdataserializer.writeByte(0xFF);
+         }
+-
+-        packetdataserializer.writeByte(0xFF); // Tell the client that this is the end!
+-
++        // End
+     }
+ 
+-    public static void writeEntry19(PacketDataSerializer packetdataserializer, WatchableObject watchableobject, int version) {
+-
+-        int type = watchableobject.c();
+-
+-        if ( version < 16 && watchableobject.b() instanceof ProtocolData.HiddenByte ) return;
+-
+-        switch(type) {
+-            case 7:
+-            case 8:
+-            case 9:
+-            case 10:
+-            case 12:
+-                return;
+-        }
+-
+-        int id = watchableobject.a();
+-        Object o = watchableobject.b();
+-
+-        if(id == 33) { // Removed
+-            return;
+-        }
+-
+-        switch (id) {
+-            case 1:
+-                type = 1;   // Short -> VarInt
+-                o = new Integer(((Number)o).intValue()); // Short -> Int
+-                break;
+-            case 3:
+-            case 4:
+-                type = 6; // Byte -> Boolean
+-                o = new Boolean(((Number)o).byteValue() == 1); // Byte -> Boolean
+-                break;
+-        }
+-
+-        switch(type) {
+-            case 0:
+-                if ( watchableobject.b() instanceof ProtocolData.DualByte )
+-                {
+-                    ProtocolData.DualByte dualByte = (ProtocolData.DualByte) o;
+-                    packetdataserializer.writeByte( version >= 16 ? dualByte.value2 : dualByte.value );
+-                } else
+-                {
+-                    packetdataserializer.writeByte(((Number)o).byteValue());
+-                }
+-                break;
+-            case 1:
+-                int val = ((Number)o).intValue();
+-                if ( watchableobject.b() instanceof ProtocolData.DualInt && version >= 46 ) {
+-                    val = ((ProtocolData.DualInt) o).value2;
+-                }
+-                packetdataserializer.b(val);
+-                break;
+-            case 2:
+-                packetdataserializer.writeFloat(((Number)o).floatValue());
+-                break;
+-            case 3:
+-                try {
+-                    packetdataserializer.a((String) o);
+-                } catch (IOException e1) {
+-                    e1.printStackTrace();
+-                }
+-                break;
+-            case 4:
+-                try {
+-                    packetdataserializer.a(ChatSerializer.a((IChatBaseComponent) o));
+-                } catch (IOException e1) {
+-                    e1.printStackTrace();
+-                }
+-                break;
+-            case 5:
+-                packetdataserializer.a((ItemStack)o);
+-                break;
+-            case 6:
+-                packetdataserializer.writeBoolean((Boolean) o);
+-                break;
+-            case 11:
+-                if(o == null) {
+-                    packetdataserializer.writeBoolean(true);
+-                    packetdataserializer.writeUUID((UUID)o);
+-                } else {
+-                    packetdataserializer.writeBoolean(false);
+-                }
+-                break;
+-
+-        }
+-    }
+ 
+ 
+     public List b() {
+@@ -321,39 +223,29 @@ public class DataWatcher {
+     }
+ 
+     public void a(PacketDataSerializer packetdataserializer, int version) {
+-
+-        // Protocol Hack 1.9
+-        if(version >= 107) {
+-            this.f.readLock().lock();
+-            if(this.dataValues.size()  > 0) {
+-                packetdataserializer.writeByte(0); // Need conversion right now. Just sending NBT data right now because we need to send some kind of data
+-                packetdataserializer.writeByte(0);
+-                packetdataserializer.writeByte(0);
+-            }
+-            /*Iterator iterator = this.dataValues.valueCollection().iterator();
+-
+-            while (iterator.hasNext()) {
+-                WatchableObject watchableobject = (WatchableObject) iterator.next();
+-                writeEntry19(packetdataserializer, watchableobject, version);
+-            }*/
+-
+-            this.f.readLock().unlock();
+-            packetdataserializer.writeByte(0xFF); // end
+-            return;
+-        }
+-        // Protocol Hack End
+-
+         this.f.readLock().lock();
+         Iterator iterator = this.dataValues.valueCollection().iterator(); // Spigot
+ 
+         while (iterator.hasNext()) {
+             WatchableObject watchableobject = (WatchableObject) iterator.next();
+-
+-            a(packetdataserializer, watchableobject, version); // Spigot - protocol patch
++            // Protocol Hack 1.9
++            if(version < 107) {
++                a(packetdataserializer, watchableobject, version); // Spigot - protocol patch
++            } else {
++                EntityMetaData.writeData(this.a, packetdataserializer, watchableobject);
++            }
++            // End
+         }
+ 
+         this.f.readLock().unlock();
+-        packetdataserializer.writeByte(127);
++
++        // Protocol Hack 1.9
++        if(packetdataserializer.version < 107) {
++            packetdataserializer.writeByte(127);
++        } else {
++            packetdataserializer.writeByte(0xFF);
++        }
++        // End
+     }
+ 
+     public List c() {
+@@ -395,7 +287,6 @@ public class DataWatcher {
+ 
+         int i = (type << 5 | watchableobject.a() & 31) & 255;
+         packetdataserializer.writeByte(i);
+-        System.out.println("Data Watcher " + i);
+         switch (type) {
+         case 0:
+             if ( watchableobject.b() instanceof ProtocolData.DualByte )
+@@ -522,4 +413,8 @@ public class DataWatcher {
+         classToId.put(ChunkCoordinates.class, 6);
+         // Spigot End
+     }
++
++    public Entity getEntity() {
++        return this.a;
++    }
+ }
+diff --git a/src/main/java/net/minecraft/server/PacketEncoder.java b/src/main/java/net/minecraft/server/PacketEncoder.java
+index 71ab5a4..cc0bbaf 100644
+--- a/src/main/java/net/minecraft/server/PacketEncoder.java
++++ b/src/main/java/net/minecraft/server/PacketEncoder.java
+@@ -11,7 +11,7 @@ import org.apache.logging.log4j.*;
+ 
+ public class PacketEncoder extends MessageToByteEncoder {
+ 
+-    private static final boolean debug = true;
++    private static final boolean debug = false;
+     private static final Logger a = LogManager.getLogger();
+     private static final Marker b = MarkerManager.getMarker("PACKET_SENT", NetworkManager.b);
+     private final NetworkStatistics c;
+@@ -21,9 +21,6 @@ public class PacketEncoder extends MessageToByteEncoder {
+     }
+ 
+     protected void a(ChannelHandlerContext channelhandlercontext, Packet packet, ByteBuf bytebuf) throws IOException {
+-        if(packet instanceof PacketPlayOutMapChunk) {
+-            return; // don't send this packet
+-        }
+         BiMap<?,?> bimap = ((BiMap) channelhandlercontext.channel().attr(NetworkManager.f).get());
+         if(debug) System.out.println("Sending: " + packet.getClass().getName());
+         Integer integer = (Integer) bimap.inverse().get(packet.getClass());
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java b/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
+index 9bde84b..f0c1f9c 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutEntityMetadata.java
+@@ -6,11 +6,12 @@ public class PacketPlayOutEntityMetadata extends Packet {
+ 
+     private int a;
+     private List b;
+-
++    private Entity entity; // Protocol Hack 1.9
+     public PacketPlayOutEntityMetadata() {}
+ 
+     public PacketPlayOutEntityMetadata(int i, DataWatcher datawatcher, boolean flag) {
+         this.a = i;
++        this.entity = datawatcher.getEntity(); // Protocol Hack 1.9
+         if (flag) {
+             this.b = datawatcher.c();
+         } else {
+@@ -38,7 +39,7 @@ public class PacketPlayOutEntityMetadata extends Packet {
+         {
+             packetdataserializer.b( a );
+         }
+-        DataWatcher.a(this.b, packetdataserializer, packetdataserializer.version);
++        DataWatcher.a(this.entity, this.b, packetdataserializer, packetdataserializer.version); // Protocol Hack 1.9 Add entity parameter
+         // Spigot end
+     }
+ 
+diff --git a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+index 2a4a55c..b07bb65 100644
+--- a/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
++++ b/src/main/java/net/minecraft/server/PacketPlayOutMapChunk.java
+@@ -1,5 +1,7 @@
+ package net.minecraft.server;
+ 
++import me.lukas81298.protocol.VariableValueArray;
++
+ import java.io.IOException;
+ import java.util.zip.DataFormatException;
+ import java.util.zip.Deflater;
+@@ -13,14 +15,17 @@ public class PacketPlayOutMapChunk extends Packet {
+     private int d;
+     private byte[] e;
+     private byte[] f;
+-    private boolean g;
++    private boolean g; // Entire Chunk
+     private int h;
+     private static byte[] i = new byte[196864];
+ 
+     private Chunk chunk; // Spigot
+     private int mask; // Spigot
+-    private byte[] newarray;
+-    private int newmask;
++
++    // Protocol Hack 1.9 Start
++
++    // Protocol Hack 1.9 End
++
+     public PacketPlayOutMapChunk() {}
+ 
+     // Spigot start - protocol patch
+@@ -36,10 +41,10 @@ public class PacketPlayOutMapChunk extends Packet {
+         this.c = chunkmap.b;
+ 
+         this.f = chunkmap.a;
++    }
+ 
+-       /* boolean flag1 = !chunk.getWorld().worldProvider.m();
++    private void initChunkData19(Chunk chunk, boolean flag, int i, int version) {
+ 
+-        newarray = new byte[a(chunk, flag, flag1, i)];*/
+     }
+ 
+     public static int c() {
+@@ -86,6 +91,8 @@ public class PacketPlayOutMapChunk extends Packet {
+         }
+     }
+ 
++
++
+     public void b(PacketDataSerializer packetdataserializer) throws IOException {
+         if(packetdataserializer.version >= 107) {
+             this.serializePacket19(packetdataserializer);
+@@ -121,26 +128,74 @@ public class PacketPlayOutMapChunk extends Packet {
+                 chunk.world.spigotConfig.antiXrayInstance.obfuscate(chunk.locX, chunk.locZ, mask, this.f, chunk.world, true); // Spigot
+             }
+             // End
+-            a( packetdataserializer, this.f );
++            a(packetdataserializer, this.f );
+         }
+         // Spigot end - protocol patch
+     }
+ 
++    // Protocol Hack 1.9 Start
+     public void serializePacket19(PacketDataSerializer packetdataserializer) throws IOException {
+ 
++        boolean overworld = chunk.getWorld().worldProvider.dimension == 0;
+         packetdataserializer.writeInt(this.chunk.locX); // Write chunk's x coordinate to the stream
+ 
+         packetdataserializer.writeInt(this.chunk.locZ); // Write chunk's z coordinate to the stream
+ 
+         packetdataserializer.writeBoolean(this.g);
+ 
+-        packetdataserializer.b(this.newmask);
++        int bitmask = 0x0; // Bitmask
+ 
+-        packetdataserializer.b(this.newarray.length);
++        if (this.chunk.getSections() != null) {
++            int maxBitmask = (1 << this.chunk.getSections().length) - 1;
++            if (this.g) { // Is this the whole chunk?
++                bitmask = maxBitmask;
++            } else {
++                bitmask &= maxBitmask;
++            }
+ 
+-        packetdataserializer.writeBytes(this.newarray);
++            for (int i = 0; i < this.chunk.getSections().length; ++i) {
++                if (this.chunk.getSections()[i] == null || this.chunk.getSections()[i].isEmpty()) { // Skip empty chunks
++                    bitmask &= ~(1 << i);
++                }
++            }
++        }
+ 
++        if (this.chunk.getSections() != null) {
++            // get the list of sections
++            for (int i = 0; i < this.chunk.getSections().length; ++i) {
++                if ((bitmask & (1 << i)) == 0) {
++                    continue;
++                }
++                ChunkSection chunkSection = this.chunk.getSections()[i];
++                VariableValueArray array = new VariableValueArray(13, this.chunk.getSections().length);
++                packetdataserializer.writeByte(0);
++                for (int j = 0; j < chunkSection.getIdArray().length; j++) {
++                    array.set(j, chunkSection.getIdArray()[j]);
++                }
++                long[] backing = array.getBacking();
++                packetdataserializer.b(backing.length);
++                packetdataserializer.ensureWritable(backing.length * 8 + chunkSection.getEmittedLightArray().getBytes().length + (overworld ? chunkSection.getSkyLightArray().getBytes().length : 0));
++                for (long value : backing) {
++                    packetdataserializer.writeLong(value);
++                }
++                packetdataserializer.writeBytes(chunkSection.getEmittedLightArray().getBytes());
++
++                if(overworld) {
++                    packetdataserializer.writeBytes(chunkSection.getSkyLightArray().getBytes());
++                }
++            }
++        }
++
++
++        if(this.g) {
++            // TODO: Change this. Just a temp. solution as there is only one biome!
++            for(int i = 0; i < 0x100; i++) {
++                packetdataserializer.writeByte(0);
++            }
++        }
+     }
++    // Protocol Hack 1.9 End
++
+     public void a(PacketPlayOutListener packetplayoutlistener) {
+         packetplayoutlistener.a(this);
+     }
+@@ -270,55 +325,6 @@ public class PacketPlayOutMapChunk extends Packet {
+     }
+     // Spigot end - protocol patch
+ 
+-   /*protected static int getBitMask(Chunk chunk, boolean flag, boolean flag1, int i) {
+-        int j = 0;
+-        ChunkSection[] achunksection = chunk.getSections();
+-        int k = 0;
+-
+-        for (int l = achunksection.length; k < l; ++k) {
+-            ChunkSection chunksection = achunksection[k];
+-
+-            if ((!flag || !chunksection.isEmpty()) && (i & 1 << k) != 0) {
+-                j += chunksection.getBlocks().a();
+-                j += chunksection.getEmittedLightArray().getBytes().length;
+-                if (flag1) {
+-                    j += chunksection.getSkyLightArray().getBytes().length;
+-                }
+-            }
+-        }
+-
+-        if (flag) {
+-            j += chunk.m().length; // getBiomeIndex
+-        }
+-
+-        return j;
+-    }
+-
+-    public static int a(PacketDataSerializer packetdataserializer, Chunk chunk, boolean flag, boolean flag1, int i) {
+-        int j = 0;
+-        ChunkSection[] achunksection = chunk.getSections();
+-        int k = 0;
+-
+-        for (int l = achunksection.length; k < l; ++k) {
+-            ChunkSection chunksection = achunksection[k];
+-
+-            if ((!flag || !chunksection.isEmpty()) && (i & 1 << k) != 0) {
+-                j |= 1 << k;
+-                chunksection.getBlocks().b(packetdataserializer);
+-                packetdataserializer.writeBytes(chunksection.getEmittedLightArray().getBytes());
+-                if (flag1) {
+-                    packetdataserializer.writeBytes(chunksection.getSkyLightArray().getBytes());
+-                }
+-            }
+-        }
+-
+-        if (flag) {
+-            packetdataserializer.writeBytes(chunk.m());
+-        }
+-
+-        return j;
+-    }*/
+-
+ 
+     @Override
+     public void handle(PacketListener packetlistener) {
+-- 
+1.9.4.msysgit.1
+
