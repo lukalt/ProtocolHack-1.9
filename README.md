@@ -1,5 +1,7 @@
 #PaperSpigot Protocol Hack 1.7-1.9
 
+##There are currently no working buils because the chunk encoding is not working yet.
+
 This is my fork of the PaperSpigot Project which aims to support all Minecraft Versions from 1.7.2 to 1.9. Installation instructions can be found below.
 
 PaperSpigot 1.7 itself is no longer maintained by the original developers.
